@@ -18,10 +18,19 @@ jobs:
         with:
           version: stable
 
+      - name: Cache lib
+        uses: actions/cache@v4
+        with:
+          path: lib
+          key: lib-${{ hashFiles('foundry.toml') }}
+
       - name: Install deps
         run: |
-          forge install OpenZeppelin/openzeppelin-contracts@v4.9.3 --no-commit
-          forge install foundry-rs/forge-std --no-commit
+          forge install OpenZeppelin/openzeppelin-contracts@v4.9.3
+          forge install foundry-rs/forge-std
 
       - name: Build
         run: forge build --sizes
+
+      # - name: Test
+      #   run: forge test -vv
