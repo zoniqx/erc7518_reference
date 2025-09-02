@@ -27,6 +27,7 @@ jobs:
       - name: Install deps
         run: |
           forge install OpenZeppelin/openzeppelin-contracts@v4.9.3
+          forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.3
           forge install foundry-rs/forge-std
 
       - name: Build
