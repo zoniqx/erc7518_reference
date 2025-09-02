@@ -12,6 +12,7 @@ import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 // Custom modules
 import {ERC1155AllowanceWrapper} from "./module/ERC1155AllowanceWrapper.sol";
@@ -63,6 +64,7 @@ library byteOp {
 }
 
 contract ERC7518 is
+    Initializable,
     ERC1155,
     EIP712,
     AccessControlEnumerable,
@@ -130,16 +132,21 @@ contract ERC7518 is
     /* -------------------------------------------------------------------------- */
     /*                                 Constructor                                */
     /* -------------------------------------------------------------------------- */
-    constructor(
+    constructor() ERC1155("") EIP712("ERC7518", "1") {
+        _disableInitializers();
+    }
+
+    function initialize(
         string memory uridata,
         address compliance,
         address forwarder,
         address stablecoin,
         address owner
-    ) ERC1155(uridata) EIP712("ERC7518", "1") {
+    ) external initializer {
         if (owner == address(0)) revert ZeroAddress();
         if (compliance == address(0)) revert ZeroAddress();
 
+        _setURI(uridata);
         _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _grantRole(URI_SETTER_ROLE, owner);
         _grantRole(PAYOUT_ROLE, owner);

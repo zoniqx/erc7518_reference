@@ -6,6 +6,8 @@
  */
 pragma solidity 0.8.15;
 
+import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {IMarketplace} from "./interfaces/IMarketPlace.sol";
@@ -26,6 +28,10 @@ contract ERC7518Marketplace is
         address indexed oldForwarder,
         address indexed newForwarder
     );
+    event BeaconAddressChanged(
+        address indexed oldBeacon,
+        address indexed newBeacon
+    );
     event ComplianceAddressChanged(
         address indexed oldCompliance,
         address indexed newCompliance
@@ -40,6 +46,7 @@ contract ERC7518Marketplace is
 
     address internal _forwarder;
     address internal _compliance;
+    IBeacon private _beacon;
     address internal _payout;
 
     /* -------------------------------------------------------------------------- */
@@ -49,10 +56,12 @@ contract ERC7518Marketplace is
     constructor(
         address forwarder,
         address compliance,
-        address payout
+        address payout,
+        IBeacon beacon
     ) {
         require(
             compliance != address(0) &&
+                address(beacon) != address(0) &&
                 forwarder != address(0) &&
                 payout != address(0),
             "Zero address"
@@ -60,6 +69,7 @@ contract ERC7518Marketplace is
         _forwarder = forwarder;
         _compliance = compliance;
         _payout = payout;
+        _beacon = beacon;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -76,6 +86,10 @@ contract ERC7518Marketplace is
 
     function payoutAddress() external view returns (address) {
         return _payout;
+    }
+
+    function beaconAddress() external view returns (address) {
+        return address(_beacon);
     }
 
 
@@ -115,6 +129,16 @@ contract ERC7518Marketplace is
     }
 
     /**
+     * @dev Change the beacon address.
+     * @param beacon The new address of the beacon contract.
+     */
+    function changeBeaconAddress(IBeacon beacon) external virtual onlyOwner {
+        require(address(beacon) != address(0), "Zero address");
+        emit BeaconAddressChanged(address(_beacon), address(beacon));
+        _beacon = beacon;
+    }
+
+    /**
         @param user address to be whitelisted
      */
     function whitelist(address user) external onlyOwner {
@@ -141,15 +165,22 @@ contract ERC7518Marketplace is
         string memory dealId
     ) external onlyWhiteListed nonReentrant returns (address) {
         require(dealIdToAddress[dealId] == address(0x0), "Duplicate dealId");
-        ERC7518 newContract = new ERC7518(
+        bytes4 initSelector = ERC7518.initialize.selector;
+        bytes memory initData = abi.encodeWithSelector(
+            initSelector,
             uri,
             _compliance,
             _forwarder,
             _payout,
             _msgSender()
         );
-        _register(address(newContract), dealId);
-        return address(newContract);
+
+        BeaconProxy proxy = new BeaconProxy(
+            address(_beacon),
+            initData
+        );
+        _register(address(proxy), dealId);
+        return address(proxy);
     }
 
 
