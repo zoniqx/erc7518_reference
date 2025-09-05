@@ -1,8 +1,13 @@
 # ERC‑7518 (DyCIST) Reference Implementation
+![Zoniqx](./assets/Zoniqx_logo.png)
 
-##  What Is ERC‑7518?
+## Dynamic Compliant Interop Security Token
 
-ERC‑7518 (DyCIST) is a proposed security token standard that builds on **ERC‑1155**, enabling **semi-fungible partitions**, dynamic compliance, and **cross‑chain interoperability**. Each `tokenId` acts as a distinct partition—such as tranche, class, or share type—with its own rights and rules. The standard also defines features like token locks, forced transfers, freezing, payouts, wrapping, and compliance hooks. ([eips.ethereum.org](https://eips.ethereum.org/EIPS/eip-7518))
+This repository contains the reference implementation for [ERC-7518](https://eips.ethereum.org/EIPS/eip-7518), a security token standard that extends ERC-1155 to provide a flexible framework for managing compliant real-asset security tokens.
+
+## Overview
+
+ERC-7518 introduces partitioned token management through the ERC-1155 multi-token paradigm, where each `tokenId` represents a distinct partition with its own set of rights, privileges, and compliance rules. This architecture enables management of tokenized real-world assets including fractional ownership, multiple share classes, and granular compliance controls. The standard also defines features like token locks, forced transfers, freezing, payouts, wrapping, and compliance hooks. ([eips.ethereum.org](https://eips.ethereum.org/EIPS/eip-7518))
 
 ### Key Concepts from the EIP
 
@@ -30,49 +35,77 @@ erc‑7518‑foundry/
 └── LICENSE
 ```
 
+## Core Features
+
+### Partition Management
+- Each `tokenId` represents a unique partition with independent compliance rules
+- Dynamic allocation of tokens between different classes or categories
+- Support for temporary non-fungibility during regulatory holding periods
+- Efficient management of complex asset structures within a single contract
+
+### Compliance Framework
+- `canTransfer()` - Pre-transfer compliance validation
+- `restrictTransfer()` / `removeRestriction()` - Dynamic transfer restrictions per partition
+- `freezeAddress()` / `unFreeze()` - Account-level compliance actions
+- Off-chain voucher support for dynamic compliance verification
+
+### Token Locking
+- `lockTokens()` - Time-based token vesting and holding periods
+- `unlockToken()` - Automated release after lock expiry
+- `transferableBalance()` - Query available balance excluding locked tokens
+- `lockedBalanceOf()` - Query locked token amounts
+
+### Recovery Mechanisms
+- `forceTransfer()` - Authorized recovery for lost keys or compliance violations
+- Bypass standard transfer restrictions for regulatory enforcement
+
+### Payout Distribution
+- `payout()` - Single recipient distributions
+- `batchPayout()` - Efficient multi-recipient payouts in single transaction
+
+### Interoperability
+- `wrapToken()` / `unwrapToken()` - ERC-20 token wrapping
+- Full backward compatibility with ERC-1155
+
+
 ##  Getting Started
 
 ### Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/) installed (`forge`, `cast`).
 - Solidity ≥ 0.8.x.
-
-### Installation
-
-```bash
-forge init erc‑7518‑foundry
-cd erc‑7518‑foundry
-forge install OpenZeppelin/openzeppelin-contracts
-```
-
-### Building & Testing
+- 
+## Deployment
 
 ```bash
+# Install dependencies
+forge install
+
+# Build contracts
 forge build
-forge test
+
+# Run tests
+forge test -vvv
+
+# Run gas snapshot
+forge snapshot
+
+# Deploy to network
+forge script script/Deploy.s.sol --rpc-url <RPC_URL> --broadcast --verify
 ```
 
-### Deployment
+## Testing
 
 ```bash
-forge script script/Deploy.s.sol:DeployERC7518 --broadcast --rpc-url <RPC_URL>
+# Run all tests with verbosity
+forge test -vvv
+
+# Run specific test file
+forge test --match-path test/ERC7518.t.sol
+
+# Gas report
+forge test --gas-report
 ```
-
-Customize the script to deploy with a URI or initial partitions as needed.
-
-##  Core Features (Minimal Reference)
-
-- Partition-based semi-fungible token logic via ERC‑1155.
-- `transferWithData` or variations ready for compliance hooks.
-- Stubbed placeholders for:
-  - `canTransfer`
-  - `lockTokens` / `unlockToken`
-  - `freeze` / `unfreeze`
-  - `forceTransfer`
-  - `payout()` / `batchPayout()`
-  - `wrapToken` / `unwrapToken`
-
-These are intentionally kept simple—meant for educational clarity and future extension.
 
 ##  Example Use Cases
 
@@ -80,9 +113,7 @@ These are intentionally kept simple—meant for educational clarity and future e
 - **Tranche-based finance**: Different risk/return tiers represented by partition-specific token IDs.
 - **Cross-chain compliant RWAs**: Tokens retain compliance state while moving across chains.
 
-##  Extension Guide
-
-To move from the minimal reference to a production-grade implementation:
+## Guide
 
 1. **Implement compliance logic**: Add `canTransfer(...)` checks using off-chain vouchers or on-chain registries.
 2. **Add recovery and lock features**: Support token recovery via `forceTransfer`, and vesting via `lockTokens`.
@@ -95,48 +126,11 @@ To move from the minimal reference to a production-grade implementation:
 
 This project is released under the **GPL-3.0 License**.
 
-## Usage
+## References
 
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
+- [EIP-7518 Specification](https://eips.ethereum.org/EIPS/eip-7518)
+- [ERC-1155 Multi-Token Standard](https://eips.ethereum.org/EIPS/eip-1155)
+- [ERC-165 Standard Interface Detection](https://eips.ethereum.org/EIPS/eip-165)
 
 
+Maintained by [Zoniqx](https://zoniqx.com)
