@@ -7,7 +7,6 @@ on:
 
 jobs:
   foundry-build:
-    name: foundry-build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,6 +22,14 @@ jobs:
         with:
           path: lib
           key: lib-${{ hashFiles('foundry.toml') }}
+          restore-keys: |
+            lib-
+
+      - name: Clean broken vendor dirs
+        run: |
+          test -d lib/openzeppelin-contracts/.git || rm -rf lib/openzeppelin-contracts || true
+          test -d lib/openzeppelin-contracts-upgradeable/.git || rm -rf lib/openzeppelin-contracts-upgradeable || true
+          test -d lib/forge-std/.git || rm -rf lib/forge-std || true
 
       - name: Install deps
         run: |
@@ -31,7 +38,7 @@ jobs:
           forge install foundry-rs/forge-std
 
       - name: Build
-        run: forge build --sizes
+        run: forge build
 
-      # - name: Test
-      #   run: forge test -vv
+      - name: Test
+        run: forge test
