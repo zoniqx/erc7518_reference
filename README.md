@@ -65,11 +65,7 @@ The reference implementation has three main contracts that together realize the 
 | **STObasev2.sol** | Security Token Offering (STO) | Handles offering lifecycle and settlement. Manages sale inventory and pricing, settles purchases, and transfers purchased ERC‑1155 `tokenId` balances to investors. It does not implement global freezes or a generic transfer gate. |
 | **erc7518.sol** | Vault and Wrapper | Acts as the entry point for ERC-7518. It handles wrapping and unwrapping of external security tokens (ERC-20, ERC-721, or partitioned ERC-1400), integrates the compliance layer, and delegates balance management to `erc1155mod.sol`. |
 
-### High-Level Flow
-
-![ERC-7518 Flow](./assets/erc7518_flow.png)
-
-### Detailed System Flow
+### High-Level System Flow
 
 ![ERC-7518 System Flow](./assets/erc7518_system_flow.png)
 
