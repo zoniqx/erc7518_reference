@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 // import {IERC20Metadata} from "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC.sol";
-
 interface IERC7518 {
     /**
      * @dev This function allows transferring a specified amount of a token from one address to another.
@@ -97,4 +96,61 @@ interface IERC7518 {
         uint256 amount,
         bytes memory data
     ) external;
+
+    /**
+     * @notice Registers or updates the address of the underlying security token standard.
+     * @param id ERC-1155 tokenId representing the partition of wrapped asset.
+     * @dev Token address could be ERC-3643, ERC-1400, or ERC-20 compatible security token.
+     */
+    function setWrappedTokenAddress(uint256 id, address token) external returns (bool);
+
+    /**
+     * @notice Locks the specified amount of source tokens and mints equivalent ERC-1155 tokens.
+     * @param id ERC-1155 tokenId to mint for the wrapped representation.
+     * @param amount Amount of underlying tokens to lock and wrap.
+     * @param data Optional compliance or proof data.
+     */
+    function wrapToken(uint256 id, uint256 amount, bytes calldata data) external returns (bool);
+
+    /**
+     * @notice Locks tokens from a specific partition of the source standard
+     *         and mints equivalent ERC-1155 partition tokens.
+     * @param partitionId partition identifier.
+     * @param id ERC-1155 tokenId corresponding to that partition.
+     * @param amount Amount of tokens to wrap.
+     * @param data Optional compliance or proof data.
+     */
+    function wrapTokenFromPartition(
+        bytes32 partitionId,
+        uint256 id,
+        uint256 amount,
+        bytes calldata data
+    ) external returns (bool);
+
+    /**
+     * @notice Burns the ERC-1155 wrapped tokens and releases the underlying asset.
+     * @param wrappedTokenId ERC-1155 tokenId that represents the wrapped asset.
+     * @param amount Amount of tokens to unwrap.
+     * @param data Optional compliance or proof data.
+     */
+    function unwrapToken(
+        uint256 wrappedTokenId,
+        uint256 amount,
+        bytes calldata data
+    ) external returns (bool);
+
+    event PartitionWrapped(
+        bytes32 indexed partitionId,
+        uint256 indexed tokenId,
+        address indexed operator,
+        uint256 amount,
+        bytes data
+    );
+
+    event PartitionUnwrapped(
+        uint256 indexed tokenId,
+        address indexed operator,
+        uint256 amount,
+        bytes data
+    );
 }

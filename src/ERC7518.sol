@@ -13,7 +13,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {STOBaseV2} from "./STOBaseV2.sol";
 // Custom modules
 import {ERC1155AllowanceWrapper} from "./module/ERC1155AllowanceWrapper.sol";
 import {Nonce} from "./module/Nonce.sol";
@@ -54,8 +58,15 @@ library byteOp {
                 let metadataPtr := add(metadata, 0x20)
                 let dataPtr := add(data, 0x62)
                 let words := div(add(metadataLength, 31), 32)
-                for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                    mstore(add(metadataPtr, mul(i, 0x20)), mload(add(dataPtr, mul(i, 0x20))))
+                for {
+                    let i := 0
+                } lt(i, words) {
+                    i := add(i, 1)
+                } {
+                    mstore(
+                        add(metadataPtr, mul(i, 0x20)),
+                        mload(add(dataPtr, mul(i, 0x20)))
+                    )
                 }
                 mstore(metadata, metadataLength)
             }
@@ -100,6 +111,10 @@ contract ERC7518 is
 
     // Minimal ERC2771 style forwarder with runtime mutability
     address private _trustedForwarder;
+    // tokenId ↔ underlying security token mapping
+    mapping(uint256 => address) public idToSourceToken;
+    // partition map
+    mapping(bytes32 => uint256) public partitionToId;
 
     /* -------------------------------------------------------------------------- */
     /*                                   Errors                                   */
@@ -178,7 +193,9 @@ contract ERC7518 is
         _setURI(newuri);
     }
 
-    function setForwarder(address forwarder) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setForwarder(
+        address forwarder
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTrustedForwarder(forwarder);
     }
 
@@ -190,17 +207,19 @@ contract ERC7518 is
         _unpause();
     }
 
-    function payout(address to, uint256 amount)
-        external
-        onlyRole(PAYOUT_ROLE)
-        nonReentrant
-        returns (bool)
-    {
+    function payout(
+        address to,
+        uint256 amount
+    ) external onlyRole(PAYOUT_ROLE) nonReentrant returns (bool) {
         _payout(to, amount);
         return true;
     }
 
-    function approve(address spender, uint id, uint256 amount) external returns (bool) {
+    function approve(
+        address spender,
+        uint id,
+        uint256 amount
+    ) external returns (bool) {
         _approve(_msgSender(), spender, id, amount);
         return true;
     }
@@ -232,7 +251,8 @@ contract ERC7518 is
     ) public override whenNotPaused {
         canTransfer(from, to, id, amount, data);
         require(
-            from == _msgSender() || _spendAllowance(from, _msgSender(), amount, id),
+            from == _msgSender() ||
+                _spendAllowance(from, _msgSender(), amount, id),
             "ERC1155: caller is not token owner or approved"
         );
         _increaseNonceBasedOnSignature(from, data, id);
@@ -249,7 +269,8 @@ contract ERC7518 is
         address sender = _msgSender();
         for (uint256 i = 0; i < ids.length; i++) {
             require(
-                from == sender || _spendAllowance(from, sender, amounts[i], ids[i]),
+                from == sender ||
+                    _spendAllowance(from, sender, amounts[i], ids[i]),
                 "ERC1155: caller is not token owner or approved"
             );
         }
@@ -264,7 +285,10 @@ contract ERC7518 is
         uint amount,
         uint releaseTime
     ) public override onlyRole(MINTER_ROLE) returns (bool) {
-        require(transferableBalance(account, id) >= amount, "Insufficient balance");
+        require(
+            transferableBalance(account, id) >= amount,
+            "Insufficient balance"
+        );
         _lockTokens(account, id, amount, releaseTime);
         return true;
     }
@@ -277,11 +301,20 @@ contract ERC7518 is
         bytes memory data
     ) public view override returns (bool) {
         if (from != address(0)) {
-            require(transferableBalance(from, id) >= amount, "Insufficient transferable balance");
+            require(
+                transferableBalance(from, id) >= amount,
+                "Insufficient transferable balance"
+            );
         }
         if (isRestricted(id)) revert RestrictedTransfer(_msgSender(), id);
 
-        (uint8 nonceType, bytes32 r, bytes32 s, uint8 v, bytes memory metadata) = data.getSignatureComponent();
+        (
+            uint8 nonceType,
+            bytes32 r,
+            bytes32 s,
+            uint8 v,
+            bytes memory metadata
+        ) = data.getSignatureComponent();
 
         uint256 nonce;
         if (nonceType == 1) {
@@ -312,7 +345,10 @@ contract ERC7518 is
         return true;
     }
 
-    function transferableBalance(address account, uint id) public view returns (uint) {
+    function transferableBalance(
+        address account,
+        uint id
+    ) public view returns (uint) {
         return balanceOf(account, id) - lockedBalanceOf(account, id);
     }
 
@@ -325,12 +361,21 @@ contract ERC7518 is
     ) public view returns (bool) {
         for (uint i = 0; i < ids.length; i++) {
             if (from != address(0)) {
-                require(transferableBalance(from, ids[i]) >= amounts[i], "Insufficient transferable balance");
+                require(
+                    transferableBalance(from, ids[i]) >= amounts[i],
+                    "Insufficient transferable balance"
+                );
             }
             if (isRestricted(ids[i])) revert RestrictedTransfer(from, ids[i]);
         }
 
-        (uint8 nonceType, bytes32 r, bytes32 s, uint8 v, bytes memory metadata) = data.getSignatureComponent();
+        (
+            uint8 nonceType,
+            bytes32 r,
+            bytes32 s,
+            uint8 v,
+            bytes memory metadata
+        ) = data.getSignatureComponent();
         uint256 nonce;
         if (nonceType == 1) {
             nonce = _globalNonces;
@@ -356,22 +401,26 @@ contract ERC7518 is
         return true;
     }
 
-    function freeze(address account, bytes memory) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+    function freeze(
+        address account,
+        bytes memory
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         _freeze(account);
         return true;
     }
 
-    function unFreeze(address account, bytes memory) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+    function unFreeze(
+        address account,
+        bytes memory
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         _unfreeze(account);
         return true;
     }
 
-    function batchPayout(address[] calldata to, uint256[] calldata amount)
-        public
-        onlyRole(PAYOUT_ROLE)
-        nonReentrant
-        returns (bool)
-    {
+    function batchPayout(
+        address[] calldata to,
+        uint256[] calldata amount
+    ) public onlyRole(PAYOUT_ROLE) nonReentrant returns (bool) {
         if (to.length != amount.length) revert InvalidArgLen();
         for (uint256 i = 0; i < to.length; i++) {
             _payout(to[i], amount[i]);
@@ -379,11 +428,11 @@ contract ERC7518 is
         return true;
     }
 
-    function forceTokenUnlock(address account, uint id, uint lockId)
-        public
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        returns (bool)
-    {
+    function forceTokenUnlock(
+        address account,
+        uint id,
+        uint lockId
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         _forceTokenUnlock(_msgSender(), account, id, lockId);
         return true;
     }
@@ -402,7 +451,9 @@ contract ERC7518 is
         return true;
     }
 
-    function restrictTransfer(uint id) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+    function restrictTransfer(
+        uint id
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         _restrict(id);
         return true;
     }
@@ -413,21 +464,17 @@ contract ERC7518 is
         return true;
     }
 
-    function changePayoutAddress(address newPayoutAddress)
-        public
-        onlyRole(PAYOUT_ROLE)
-        returns (bool)
-    {
+    function changePayoutAddress(
+        address newPayoutAddress
+    ) public onlyRole(PAYOUT_ROLE) returns (bool) {
         if (newPayoutAddress == address(0)) revert ZeroAddress();
         _changePayoutAddress(newPayoutAddress);
         return true;
     }
 
-    function changeCompliToAddress(address newCompliToAddress)
-        public
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        returns (bool)
-    {
+    function changeCompliToAddress(
+        address newCompliToAddress
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         if (newCompliToAddress == address(0)) revert ZeroAddress();
         compliTO = newCompliToAddress;
         return true;
@@ -465,12 +512,9 @@ contract ERC7518 is
         _approve(owner, spender, id, value);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC1155, AccessControlEnumerable)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC1155, AccessControlEnumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
@@ -512,6 +556,105 @@ contract ERC7518 is
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 
+    function setWrappedTokenAddress(uint256 id, address token) external returns (bool) {
+        require(token != address(0), "ERC7518: invalid");
+        idToSourceToken[id] = token;
+        return true;
+    }
+
+    function wrapToken(uint256 id, uint256 amount, bytes calldata data) public returns (bool) {
+        address src = idToSourceToken[id];
+        require(src != address(0), "ERC7518: no source");
+        require(amount > 0, "ERC7518: amount=0");
+
+        if (_isERC20(src)) {
+            IERC20(src).transferFrom(msg.sender, address(this), amount);
+        } else if (_isERC721(src)) {
+            // For NFT wrapping: wrap single token once
+            IERC721(src).safeTransferFrom(msg.sender, address(this), amount);
+        } else if (_isERC1155(src)) {
+            IERC1155(src).safeTransferFrom(msg.sender, address(this), id, amount, data);
+        } else {
+            revert("ERC7518: unsupported source");
+        }
+
+        _mint(msg.sender, id, amount, data);
+        emit PartitionWrapped(bytes32(0), id, msg.sender, amount, data);
+        return true;
+    }
+
+    function wrapTokenFromPartition(
+        bytes32 partitionId,
+        uint256 id,
+        uint256 amount,
+        bytes calldata data
+    ) public returns (bool) {
+        address src = idToSourceToken[id];
+        require(src != address(0), "ERC7518: no source");
+        require(amount > 0, "ERC7518: amount=0");
+
+        // low-level call to operatorTransferByPartition if contract supports it
+        (bool success, ) = src.call(
+            abi.encodeWithSignature(
+                "operatorTransferByPartition(bytes32,address,address,uint256,bytes,bytes)",
+                partitionId,
+                msg.sender,
+                address(this),
+                amount,
+                data,
+                ""
+            )
+        );
+        require(success, "ERC7518: partition transfer failed");
+
+        _mint(msg.sender, id, amount, data);
+        partitionToId[partitionId] = id;
+        emit PartitionWrapped(partitionId, id, msg.sender, amount, data);
+        return true;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                  Unwrap                                    */
+    /* -------------------------------------------------------------------------- */
+
+    function unwrapToken(uint256 id, uint256 amount, bytes calldata data) public returns (bool) {
+        address src = idToSourceToken[id];
+        require(src != address(0), "ERC7518: no source");
+        require(amount > 0, "ERC7518: amount=0");
+
+        _burn(msg.sender, id, amount);
+
+        if (_isERC20(src)) {
+            IERC20(src).transfer(msg.sender, amount);
+        } else if (_isERC721(src)) {
+            IERC721(src).safeTransferFrom(address(this), msg.sender, amount);
+        } else if (_isERC1155(src)) {
+            IERC1155(src).safeTransferFrom(address(this), msg.sender, id, amount, data);
+        } else {
+            revert("ERC7518: unsupported unwrap");
+        }
+
+        emit PartitionUnwrapped(id, msg.sender, amount, data);
+        return true;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Interface Checks                              */
+    /* -------------------------------------------------------------------------- */
+
+    function _isERC20(address token) internal view returns (bool) {
+        (bool success, ) = token.staticcall(abi.encodeWithSignature("totalSupply()"));
+        return success;
+    }
+
+    function _isERC721(address token) internal view returns (bool) {
+        return IERC165(token).supportsInterface(type(IERC721).interfaceId);
+    }
+
+    function _isERC1155(address token) internal view returns (bool) {
+        return IERC165(token).supportsInterface(type(IERC1155).interfaceId);
+    }
+
     /* ------------------------------- Meta Txns -------------------------------- */
     function isTrustedForwarder(address forwarder) public view returns (bool) {
         return forwarder != address(0) && forwarder == _trustedForwarder;
@@ -521,7 +664,13 @@ contract ERC7518 is
         _trustedForwarder = forwarder;
     }
 
-    function _msgSender() internal view virtual override returns (address sender) {
+    function _msgSender()
+        internal
+        view
+        virtual
+        override
+        returns (address sender)
+    {
         if (isTrustedForwarder(msg.sender)) {
             assembly {
                 sender := shr(96, calldataload(sub(calldatasize(), 20)))
@@ -531,7 +680,13 @@ contract ERC7518 is
         }
     }
 
-    function _msgData() internal view virtual override returns (bytes calldata) {
+    function _msgData()
+        internal
+        view
+        virtual
+        override
+        returns (bytes calldata)
+    {
         if (isTrustedForwarder(msg.sender)) {
             return msg.data[:msg.data.length - 20];
         }

@@ -48,7 +48,7 @@ contract ERC7518TransferComplianceTest is Test, ERC1155Holder {
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         token = ERC7518(address(proxy));
         
-        // Pre-mint tokens for testing - commented out to debug
+        // Pre-mint tokens for testing
         // _mintTokensWithCompliance();
     }
     
